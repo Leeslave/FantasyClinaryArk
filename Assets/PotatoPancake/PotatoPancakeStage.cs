@@ -9,14 +9,24 @@ namespace FantasyClinaryArk
     {
         private const string RecipeKey = "Recipes.GoldenPotatoPancake";
         private const string Dish = "산골 마을의 황금 감자전";
+        private const string UdonRecipeKey = "Recipes.GenrokuUdon";
+        private const string UdonDish = "겐로쿠 우동";
+        private const string UdonRecipe =
+            "1. 대파를 3~4cm로 썰어 기름 없는 팬에 강불로 굽는다.\n" +
+            "2. 겉이 살짝 그을리고 향이 올라오면 물 600ml를 붓는다.\n" +
+            "3. 쯔유 50~100ml로 간하고 후추를 넉넉히 넣는다.\n" +
+            "4. 후추의 매운맛이 올라오면 우동면을 넣어 익힌다.\n" +
+            "선택 토핑 · 유부를 국물에 불리거나, 소고기 또는 닭다리살을 별도 팬에서 익혀 올린다.";
+        // One medium potato makes one thin pancake about 14 cm across (≈90 g batter at 5–6 mm).
+        private const string Ingredients = "재료 · 감자 1개(약 150g), 소금 한 꼬집(약 0.5g), 식용유 1큰술";
         private const string Recipe =
-            "1. 감자 껍질을 벗겨 강판에 간다.\n" +
-            "2. 체로 물기를 빼고 감자 물을 5분쯤 둔다.\n" +
-            "3. 윗물을 따라 내고 밑에 가라앉은 전분과 소금을 반죽에 섞는다.\n" +
-            "4. 중불에 달군 팬에 기름을 두르고 반죽을 얇게 편다.\n" +
+            "1. 감자 1개의 껍질을 벗겨(약 135g) 강판에 간다.\n" +
+            "2. 면포로 꼭 짜서 물기(약 40ml)를 빼고, 감자 물은 5분쯤 둔다.\n" +
+            "3. 윗물을 따라 내고 바닥의 전분(약 5g)과 소금 한 꼬집(약 0.5g)을 반죽에 섞는다.\n" +
+            "4. 중불에 달군 팬에 식용유 1큰술을 두르고 반죽을 지름 14cm쯤, 5mm 두께로 얇게 편다.\n" +
             "5. 가장자리가 노릇해지고 굳으면 뒤집어 속까지 익힌다.";
 
-        private enum Art { Rain = 0, Grater = 1, Plate = 7 }
+        private enum Art { Rain = 0, Grater = 1, Plate = 7, Scallions, Udon }
 
         private readonly struct Line
         {
@@ -43,6 +53,18 @@ namespace FantasyClinaryArk
             new("하츠의 기억", "의뢰를 마친 두 사람은 비를 피해 산골 마을의 작은 숙소에 들렀다. 부엌에 남은 건 감자 몇 알뿐이었다."),
             new("하츠의 기억", "처마에 빗물이 고였다. 체 아래에 받아 둔 감자 물도, 가만히 두니 바닥에 하얀 층이 생겼다."),
             new("에이미", "젖은 장갑을 말리는 동안, 팬에서 지글거리는 소리가 났어. 가장자리부터 노릇해지던 게 아직도 기억나.")
+        };
+
+        private static readonly Line[] UdonVisit =
+        {
+            new("에이미", "감자전도 좋았는데, 오늘은 뜨끈한 국물도 당기네. 예전에 나루터에서 먹은 우동 기억나?"),
+            new("하츠", "후추 향이 코끝을 찔렀던 거? 그건 대파부터 구워야 해.")
+        };
+
+        private static readonly Line[] UdonMemory =
+        {
+            new("하츠의 기억", "막배를 기다리던 밤, 나루터의 요리사는 빈 팬에 대파를 올렸다. 기름을 두르지 않았는데도 향이 부두까지 퍼졌다."),
+            new("에이미", "후추 들어가는 걸 보고 너무 많이 넣는 줄 알았어. 그런데 그게 자꾸 생각나는 맛이더라고.")
         };
 
         // Amy's reaction follows how well the pancake turned out (result tier 0 = best).
@@ -83,11 +105,14 @@ namespace FantasyClinaryArk
         [SerializeField] private Texture2D hartzPortrait;
 
         private Text chapter;
+        private Text dishTitle;
         private Text speaker;
         private Text body;
         private Text caption;
         private RawImage illustration;
         private Button primary;
+        private Button secondary;
+        private Texture2D scallionArt, udonArt;
         private RectTransform header;
         private RectTransform story;
         private PotatoKitchen kitchen;
@@ -138,10 +163,15 @@ namespace FantasyClinaryArk
 
         private void StartCooking()
         {
+            StartKitchen(Served, false);
+        }
+
+        private void StartKitchen(System.Action<int> served, bool udon)
+        {
             header.gameObject.SetActive(false);
             story.gameObject.SetActive(false);
             kitchen.gameObject.SetActive(true);
-            kitchen.Begin(Served, () => exitToTitle?.Invoke());
+            kitchen.Begin(served, () => exitToTitle?.Invoke(), udon);
         }
 
         private void Served(int tier)
@@ -159,9 +189,49 @@ namespace FantasyClinaryArk
 
         private void ShowRecipe()
         {
-            SetPage("식당 · 등록된 레시피", "재료 · 감자 3개, 소금 약간, 식용유", Recipe,
+            SetPage("식당 · 등록된 레시피", Ingredients, Recipe,
                 Art.Plate, "판매 메뉴 해금");
-            Focus(backButton);
+            SetButton(primary, "1-2 겐로쿠 우동", BeginUdon);
+            if (PlayerPrefs.GetInt(UdonRecipeKey, 0) == 1)
+                SetButton(secondary, "우동 레시피", ShowUdonRecipe);
+            Focus(primary);
+        }
+
+        private void BeginUdon()
+        {
+            ShowDialogue("식당 · 따뜻한 국물", Art.Scallions, "겐로쿠 우동",
+                UdonVisit, 0, "기억 떠올리기", () =>
+                    ShowDialogue("회상 · 막배를 기다리며", Art.Scallions, "나루터의 국물",
+                        UdonMemory, 0, "우동 만들기", () => StartKitchen(ServeUdon, true)));
+        }
+
+        private void ServeUdon(int tier)
+        {
+            Line[] tasting =
+            {
+                new("에이미", tier < 2 ? "이 향이었어. 한 모금 마시니까 막배 기다리던 밤이 생각난다."
+                    : "따뜻하다. 그날 먹었던 건 대파 향이랑 후추 맛이 조금 더 또렷했어."),
+                new("하츠", tier < 2 ? "다음에 배 놓치면 여기로 와. 한 그릇 말아 줄게."
+                    : "기억해 둘게. 다음에 오면 한 그릇 더 해 줄게.")
+            };
+            ShowDialogue("식당 · 나루터의 맛", Art.Udon, "에이미의 겐로쿠 우동", tasting, 0,
+                "레시피·판매 메뉴 등록", UnlockUdon);
+        }
+
+        private void UnlockUdon()
+        {
+            PlayerPrefs.SetInt(UdonRecipeKey, 1);
+            PlayerPrefs.Save();
+            ShowUdonRecipe();
+        }
+
+        private void ShowUdonRecipe()
+        {
+            SetPage("식당 · 등록된 레시피", "재료 · 대파, 쯔유(혼쯔유 기준), 후추, 우동면", UdonRecipe,
+                Art.Udon, "판매 메뉴 해금");
+            SetButton(primary, "1-2 다시 만들기", BeginUdon);
+            SetButton(secondary, "감자전 레시피", ShowRecipe);
+            Focus(primary);
         }
 
         private void SetPage(string section, string name, string message, Art art, string artCaption)
@@ -175,12 +245,40 @@ namespace FantasyClinaryArk
             story.gameObject.SetActive(true);
             SetArt(art);
             primary.gameObject.SetActive(false);
+            secondary.gameObject.SetActive(false);
         }
 
         private void SetArt(Art art)
         {
+            if (art == Art.Scallions || art == Art.Udon)
+            {
+                if (art == Art.Scallions)
+                {
+                    if (scallionArt == null)
+                        scallionArt = UdonArt.StorySprite(false).ToTexture();
+                    illustration.texture = scallionArt;
+                }
+                else
+                {
+                    if (udonArt == null)
+                        udonArt = UdonArt.StorySprite(true).ToTexture();
+                    illustration.texture = udonArt;
+                }
+                dishTitle.text = UdonDish;
+                illustration.uvRect = new Rect(.14f, 0, .72f, 1);
+                return;
+            }
+
+            dishTitle.text = Dish;
+            illustration.texture = artwork;
             int tile = (int)art;
             illustration.uvRect = new Rect((tile % 4) * .25f, (1 - tile / 4) * .5f, .25f, .5f);
+        }
+
+        private void OnDestroy()
+        {
+            if (scallionArt != null) Destroy(scallionArt);
+            if (udonArt != null) Destroy(udonArt);
         }
 
         private void BuildView()
@@ -193,7 +291,7 @@ namespace FantasyClinaryArk
             header = Place(root, "Header", new Rect(0, 0, 1280, 720));
             AddSurface(header, "Header edge", new Rect(64, 566, 1152, 104), Border);
             AddSurface(header, "Header", new Rect(66, 568, 1148, 100), Panel);
-            AddText(header, "Dish title", new Rect(90, 580, 870, 53), Dish, headingFont, 43, Cream);
+            dishTitle = AddText(header, "Dish title", new Rect(90, 580, 870, 53), Dish, headingFont, 43, Cream);
             chapter = AddText(header, "Chapter", new Rect(92, 632, 870, 28), "", bodyFont, 21, Gold);
             backButton = AddButton(header, "Back", new Rect(1024, 594, 162, 48));
             SetButton(backButton, "타이틀로", () => exitToTitle?.Invoke());
@@ -221,6 +319,7 @@ namespace FantasyClinaryArk
             body = AddText(root, "Dialogue or recipe", new Rect(544, 220, 638, 224), "", bodyFont, 30, Cream,
                 TextAnchor.UpperLeft);
             primary = AddButton(root, "Advance", new Rect(866, 126, 316, 58));
+            secondary = AddButton(root, "Other recipe", new Rect(544, 126, 300, 58));
         }
 
         private static RectTransform Place(RectTransform parent, string name, Rect bounds)

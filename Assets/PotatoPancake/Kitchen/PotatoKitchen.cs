@@ -9,7 +9,7 @@ using static FantasyClinaryArk.Px;
 namespace FantasyClinaryArk
 {
     /// <summary>
-    /// The cooking part of the 감자전 stage: seven gesture minigames drawn as 320 × 180 pixel art,
+    /// Gesture minigames drawn as 320 × 180 pixel art,
     /// with the step card, grading stamp and result screen built in uGUI on the 1280 × 720 composition.
     /// </summary>
     public sealed class PotatoKitchen : MonoBehaviour
@@ -17,7 +17,7 @@ namespace FantasyClinaryArk
         internal const int ArtW = 320, ArtH = 180;
         private const float ScreenW = 1280, ScreenH = 720;
 
-        private enum Demo { Down, UpDown, Hold, Right, Circle, Scrub, Up }
+        private enum Demo { Down, UpDown, Hold, Right, Circle, Scrub, Up, Tap, Left }
         private enum Mode { Idle, Intro, Ready, Play, Graded, Result }
 
         private sealed class StepDef
@@ -29,42 +29,42 @@ namespace FantasyClinaryArk
             public Func<KitchenContext, CookingGame> Make;
         }
 
-        private static readonly StepDef[] Steps =
+        private static readonly StepDef[] PotatoSteps =
         {
             new StepDef
             {
                 Name = "감자 껍질 벗기기", Time = 20, Demo = Demo.Down, Make = k => new PeelGame(k),
-                Desc = "필러로 감자를 위에서 아래로 쓸어 내려 껍질을 벗겨요. 노란 화살표가 남은 껍질이에요.",
+                Desc = "중간 크기 감자 한 알(약 150g)이면 지름 14cm 한 판이 나와요. 필러로 위에서 아래로 쓸어 내려 껍질을 벗겨요.",
                 Hint = "위에서 아래로 쓸어 내리기", Clue = "부엌에 남은 건 감자 몇 알뿐이었다."
             },
             new StepDef
             {
                 Name = "강판에 갈기", Time = 12, Demo = Demo.UpDown, Make = k => new GrateGame(k),
-                Desc = "감자를 강판에 대고 위아래 끝까지 빠르게 문질러요. 열두 번이면 다 갈려요.",
+                Desc = "손질한 감자(약 135g)를 강판에 대고 위아래 끝까지 빠르게 문질러요. 열두 번이면 다 갈려요.",
                 Hint = "누른 채 위아래로 문지르기", Clue = "숙소에서 강판에 감자를 문지르던 소리가 났다."
             },
             new StepDef
             {
                 Name = "면포로 물기 짜기", Time = 12, Demo = Demo.Hold, Make = k => new SqueezeGame(k),
-                Desc = "면포를 꾹 누르고 있으면 물이 빠져요. 게이지가 초록 구간일 때 손을 떼요.",
+                Desc = "면포를 꾹 누르고 있으면 감자 물이 빠져요. 약 40ml, 게이지가 초록 구간일 때 손을 떼요.",
                 Hint = "꾹 누르다가 초록에서 떼기", Clue = "젖은 감자는 체 위에 놓여 있었고, 그 아래에는 빈 그릇이 있었다."
             },
             new StepDef
             {
                 Name = "윗물 따라 내기", Time = 20, Demo = Demo.Right, Make = k => new PourGame(k),
-                Desc = "5분 두면 바닥에 흰 전분이 가라앉아요. 그릇을 오른쪽으로 기울여 맑은 윗물만 버려요. 너무 기울이면 전분까지 쏟아져요!",
+                Desc = "5분 두면 바닥에 흰 전분(약 5g)이 가라앉아요. 그릇을 오른쪽으로 기울여 맑은 윗물만 버려요. 너무 기울이면 전분까지 쏟아져요!",
                 Hint = "누른 채 오른쪽으로 끌어 기울이기", Clue = "맑은 윗물은 버렸지만 바닥에 붙은 흰 전분은 감자 반죽에 다시 넣었다."
             },
             new StepDef
             {
                 Name = "소금 넣고 섞기", Time = 14, Demo = Demo.Circle, Make = k => new MixGame(k),
-                Desc = "소금통을 톡톡 두 번 눌러 간을 하고, 숟가락으로 원을 그리며 세 바퀴 섞어요.",
+                Desc = "소금통을 톡톡 두 번 눌러 한 꼬집(약 0.5g)을 넣고, 숟가락으로 원을 그리며 세 바퀴 섞어요.",
                 Hint = "소금통 톡톡 → 빙글빙글 젓기", Clue = "그날 하츠는 손끝으로 작은 소금 한 꼬집을 집었다."
             },
             new StepDef
             {
                 Name = "기름 두르고 반죽 펴기", Time = 18, Stove = true, Demo = Demo.Scrub, Make = k => new SpreadGame(k),
-                Desc = "기름병을 꾹 눌러 붓다가 초록 구간에서 떼요. 그다음 반죽을 팬 가장자리까지 얇게 펴요.",
+                Desc = "기름병을 꾹 눌러 1큰술쯤(13~20ml) 붓다가 초록 구간에서 떼요. 그다음 반죽을 점선 안쪽에 지름 14cm쯤으로 얇게 펴요.",
                 Hint = "꾹 눌러 붓기 → 문질러 펴기", Clue = "에이미는 감자전 가장자리가 얇고 바삭했다고 기억한다."
             },
             new StepDef
@@ -72,6 +72,40 @@ namespace FantasyClinaryArk
                 Name = "노릇하게 굽고 뒤집기", Time = 22, Stove = true, Demo = Demo.Up, Make = k => new FryGame(k),
                 Desc = "가장자리가 노릇해지면 뒤집개로 위로 휙 쓸어 뒤집어요. 반대쪽도 노릇해지면 한 번 더 휙! 접시에 담아요.",
                 Hint = "노릇할 때 위로 휙 쓸어 올리기", Clue = "노릇해진 가장자리가 단단해지자 뒤집개가 그 밑으로 들어갔다."
+            }
+        };
+
+        private static readonly StepDef[] UdonSteps =
+        {
+            new StepDef
+            {
+                Name = "대파 큼직하게 썰기", Time = 15, Demo = Demo.Down, Make = k => new SliceScallionGame(k),
+                Desc = "대파를 3~4cm 길이로 큼직하게 썰어요. 표시선을 위에서 아래로 그어 보세요.",
+                Hint = "표시선을 따라 아래로 쓸기", Clue = "국물 속 대파는 한입에 다 넣기 어려울 만큼 큼직했다."
+            },
+            new StepDef
+            {
+                Name = "대파 강불에 굽기", Time = 16, Stove = true, Demo = Demo.Tap, Make = k => new RoastScallionGame(k),
+                Desc = "기름 없이 강불에 구워요. 대파의 겉이 살짝 그을리고 게이지가 초록 구간에 들어오면 표시된 대파를 눌러 뒤집어요.",
+                Hint = "살짝 그을린 대파 톡 눌러 뒤집기", Clue = "기름을 두르지 않은 팬에서도 대파 향이 확 올라왔다."
+            },
+            new StepDef
+            {
+                Name = "물과 쯔유 붓기", Time = 20, Stove = true, Demo = Demo.Hold, Make = k => new UdonBrothGame(k),
+                Desc = "병을 꾹 눌러 물 600ml를 붓고 손을 떼요. 이어서 쯔유 병을 눌러 50~100ml 사이로 간을 맞춰요.",
+                Hint = "병을 길게 누르고 초록 구간에서 떼기", Clue = "대파 향이 올라오면 물을 붓고 쯔유를 넣었다."
+            },
+            new StepDef
+            {
+                Name = "후추 넉넉히 넣기", Time = 12, Stove = true, Demo = Demo.Tap, Make = k => new UdonPepperGame(k),
+                Desc = "후추 향이 강하게 올라올 때까지 후추통을 톡톡 눌러요. 이 국물의 맛을 결정하는 재료예요.",
+                Hint = "후추통 톡톡 누르기", Clue = "첫 모금부터 후추의 매운맛이 또렷했다."
+            },
+            new StepDef
+            {
+                Name = "우동면 풀어 담기", Time = 18, Stove = true, Demo = Demo.Left, Make = k => new UdonNoodleGame(k),
+                Desc = "오른쪽의 우동면을 냄비로 끌어 넣어요. 면이 풀리면 냄비를 눌러 그릇에 담아요.",
+                Hint = "면을 냄비로 끌기 → 면이 익으면 냄비 누르기", Clue = "후추의 매운맛이 올라온 뒤에 우동면을 넣었다."
             }
         };
 
@@ -110,7 +144,9 @@ namespace FantasyClinaryArk
         private CookingGame game;
         private float st, timeLeft, typed;
         private int lastSecond;
-        private readonly int[] scores = new int[Steps.Length];
+        private StepDef[] steps;
+        private int[] scores;
+        private bool isUdon;
         private readonly List<(float at, Sfx sfx)> queued = new List<(float, Sfx)>();
         private readonly List<UnityEngine.Object> sceneAssets = new List<UnityEngine.Object>();
 
@@ -190,17 +226,17 @@ namespace FantasyClinaryArk
             ui = Box(frame, "Screen", 0, 0, ScreenW, ScreenH);
         }
 
-        internal void Begin(Action<int> onServed, UnityAction onExit)
+        internal void Begin(Action<int> onServed, UnityAction onExit, bool udon = false)
         {
             served = onServed;
             exit = onExit;
-            for (int i = 0; i < scores.Length; i++)
-                scores[i] = -1;
-            k.PancakeMask = null;
-            k.FinalPancake = null;
+            isUdon = udon;
+            steps = udon ? UdonSteps : PotatoSteps;
+            scores = new int[steps.Length];
+            queued.Clear();
             k.PointerDown = false;
             k.Hovering = false;
-            GoIntro(0);
+            Retry();
         }
 
         private void GoIntro(int index)
@@ -208,7 +244,7 @@ namespace FantasyClinaryArk
             ClearScreen();
             mode = Mode.Intro;
             step = index;
-            def = Steps[index];
+            def = steps[index];
             game = def.Make(k);
             k.Parts.Clear();
             st = 0;
@@ -245,12 +281,12 @@ namespace FantasyClinaryArk
                 }
 
             playPanel.gameObject.SetActive(false);
-            BuildGraded(score, note, grade);
+            BuildGraded(score, note, grade, game.Measure());
         }
 
         private void Next()
         {
-            if (step + 1 < Steps.Length)
+            if (step + 1 < steps.Length)
                 GoIntro(step + 1);
             else
                 GoResult();
@@ -279,6 +315,8 @@ namespace FantasyClinaryArk
                 scores[i] = -1;
             k.PancakeMask = null;
             k.FinalPancake = null;
+            k.Amounts = new Batch();
+            k.Udon = new UdonBatch();
             GoIntro(0);
         }
 
@@ -417,13 +455,18 @@ namespace FantasyClinaryArk
             if (mode == Mode.Result)
             {
                 art.Clear(None);
-                art.Ellipse(112, 100, 90, 56, Rgba(0, 0, 0, .35f));
-                art.Blit(KitchenArt.Plate, 112 - 95, 88 - 60);
-                if (k.FinalPancake != null)
-                    art.BlitScaled(k.FinalPancake, 112 - 63, 88 - 43, 126, 86);
+                if (isUdon)
+                    UdonArt.Bowl(art, 112, 92, k.Udon.Pepper);
                 else
-                    art.Ellipse(112, 88, 56, 36, KitchenArt.CookColor(.7f));
-                art.Blit(KitchenArt.Dip, 186, 120);
+                {
+                    art.Ellipse(112, 100, 90, 56, Rgba(0, 0, 0, .35f));
+                    art.Blit(KitchenArt.Plate, 112 - 95, 88 - 60);
+                    if (k.FinalPancake != null)
+                        art.BlitScaled(k.FinalPancake, 112 - 63, 88 - 43, 126, 86);
+                    else
+                        art.Ellipse(112, 88, 56, 36, KitchenArt.CookColor(.7f));
+                    art.Blit(KitchenArt.Dip, 186, 120);
+                }
                 k.Parts.Draw(art);
             }
             else
@@ -537,8 +580,14 @@ namespace FantasyClinaryArk
                         edge.color = c;
                     break;
                 case Demo.Right:
-                    hx = bx + 50 + Clamp(t * 1.4f, 0, 1) * (bw - 110);
+                case Demo.Left:
+                    float travel = Clamp(t * 1.4f, 0, 1);
+                    hx = bx + 50 + (def.Demo == Demo.Left ? 1 - travel : travel) * (bw - 110);
                     pressed = t < .8f;
+                    break;
+                case Demo.Tap:
+                    pressed = t * 3 % 1 < .25f;
+                    hy -= pressed ? 0 : 10;
                     break;
                 case Demo.Circle:
                     hx = cx + Mathf.Cos(time * 4.5f) * 70;
@@ -585,11 +634,11 @@ namespace FantasyClinaryArk
         {
             Panel(ui, 20, 14, 360, 74, Edge, PanelFill);
             Panel(ui, 36, 30, 58, 42, Edge, Crimson, false);
-            TextMid(ui, "1-1", 65, 52, 19, true, Gold, TextAnchor.MiddleCenter);
-            Txt(ui, "산골 마을의 황금 감자전", 110, 48, 19, true, Cream);
+            TextMid(ui, isUdon ? "1-2" : "1-1", 65, 52, 19, true, Gold, TextAnchor.MiddleCenter);
+            Txt(ui, isUdon ? "겐로쿠 우동" : "산골 마을의 황금 감자전", 110, 48, 19, true, Cream);
             Txt(ui, $"STEP {step + 1} · {def.Name}", 110, 72, 14, false, Gold);
 
-            for (int i = 0; i < Steps.Length; i++)
+            for (int i = 0; i < steps.Length; i++)
             {
                 float x = 432 + i * 54, y = 26;
                 bool current = i == step, done = scores[i] >= 0 && !current;
@@ -624,7 +673,7 @@ namespace FantasyClinaryArk
             const float x = 290, y = 122, w = 700, h = 540;
             Parchment(ui, x, y, w, h);
             Panel(ui, x + 40, y + 36, 150, 40, Edge, Crimson, false);
-            TextMid(ui, $"STEP {step + 1} / {Steps.Length}", x + 115, y + 57, 17, false, Cream, TextAnchor.MiddleCenter, true);
+            TextMid(ui, $"STEP {step + 1} / {steps.Length}", x + 115, y + 57, 17, false, Cream, TextAnchor.MiddleCenter, true);
             Txt(ui, def.Name, x + 40, y + 136, 44, true, Ink);
             Label(ui, def.Desc, x + 40, y + 158, w - 80, 110, 20, false, Hex("#3f2b27"), TextAnchor.UpperLeft, true, true);
 
@@ -672,7 +721,7 @@ namespace FantasyClinaryArk
             readyRect.anchoredPosition = new Vector2(640, -330);
         }
 
-        private void BuildGraded(int score, string note, Grade grade)
+        private void BuildGraded(int score, string note, Grade grade, string measure)
         {
             gradedRoot = Box(ui, "Graded", 0, 0, ScreenW, ScreenH);
             gradedDim = Rect(gradedRoot, 0, 100, ScreenW, ScreenH - 100, Rgba(18, 10, 12, 0));
@@ -686,6 +735,12 @@ namespace FantasyClinaryArk
             gradedDetails = Box(gradedRoot, "Details", 0, 0, ScreenW, ScreenH);
             Text scoreText = TextMid(gradedDetails, $"{score}점", 640, 380, 36, false, Cream, TextAnchor.MiddleCenter, true);
             Outline(scoreText, Stroke, 4);
+            if (!string.IsNullOrEmpty(measure))
+            {
+                Text amounts = TextMid(gradedDetails, measure, 640, 432, 22, false, Hex("#FFD37A"), TextAnchor.MiddleCenter, true);
+                Outline(amounts, Stroke, 3);
+            }
+
             Panel(gradedDetails, 28, 512, 166, 166, Edge, Hex("#3b2621"));
             RawImage portrait = Raw(gradedDetails, "Hartz", 36, 520, 150, 150, hartz);
             portrait.uvRect = new UnityEngine.Rect(128 / 418f, (418 - 10 - 170) / 418f, 170 / 418f, 170 / 418f);
@@ -694,7 +749,8 @@ namespace FantasyClinaryArk
             Txt(gradedDetails, "하츠", 240, 554, 14, false, Crimson, bold: true);
             Txt(gradedDetails, grade.Line, 240, 590, 26, true, Ink);
             Txt(gradedDetails, note ?? "", 240, 636, 19, false, Hex("#5a4038"), bold: true);
-            nextButton = Btn(gradedDetails, 930, 600, 300, 76, step + 1 < Steps.Length ? "다음 단계" : "완성된 감자전 보기", Next, size: 24);
+            string nextLabel = step + 1 < steps.Length ? "다음 단계" : isUdon ? "완성된 우동 보기" : "완성된 감자전 보기";
+            nextButton = Btn(gradedDetails, 930, 600, 300, 76, nextLabel, Next, size: 24);
             gradedDetails.gameObject.SetActive(false);
         }
 
@@ -708,17 +764,21 @@ namespace FantasyClinaryArk
             Texture2D medal = KitchenArt.MedalSprite(tier).ToTexture();
             sceneAssets.Add(medal);
             Raw(ui, "Medal", x + 34, y + 34, 72, 96, medal);
-            Txt(ui, Dishes[tier], x + 124, y + 82, 28, true, Ink);
-            Txt(ui, $"총점 {total}점", x + 124, y + 120, 20, false, Crimson, bold: true);
+            Txt(ui, isUdon ? "겐로쿠 우동" : Dishes[tier], x + 124, y + 72, 28, true, Ink);
+            Txt(ui, $"총점 {total}점", x + 124, y + 104, 20, false, Crimson, bold: true);
+            Batch made = k.Amounts;
+            string amounts = isUdon ? $"물 {k.Udon.Water:0}ml · 쯔유 {k.Udon.Sauce:0}ml · 후추 {k.Udon.Pepper}번"
+                : $"감자 1알 {Batch.Potato:0}g · 지름 {made.Diameter:0.0}cm · 두께 {made.Thickness:0.0}mm";
+            Txt(ui, amounts, x + 124, y + 132, 15, false, Hex("#5a4038"), bold: true);
             for (float i = 0; i < w - 68; i += 10)
                 Rect(ui, x + 34 + i, y + 150, 6, 2, Hex("#C9A878"));
 
-            for (int i = 0; i < Steps.Length; i++)
+            for (int i = 0; i < steps.Length; i++)
             {
                 int score = Mathf.Max(0, scores[i]);
                 Grade grade = GradeOf(score);
                 float ry = y + 184 + i * 44;
-                Txt(ui, $"{i + 1}. {Steps[i].Name}", x + 36, ry, 18, false, Ink, bold: true);
+                Txt(ui, $"{i + 1}. {steps[i].Name}", x + 36, ry, 18, false, Ink, bold: true);
                 Panel(ui, x + w - 176, ry - 24, 104, 34, grade.Chip, grade.Chip, false, 2);
                 TextMid(ui, grade.Label, x + w - 124, ry - 7, 15, false, Hex("#fff6e2"), TextAnchor.MiddleCenter, true);
                 TextMid(ui, score.ToString(), x + w - 36, ry - 7, 17, false, Hex("#5a4038"), TextAnchor.MiddleRight, true);
@@ -731,7 +791,7 @@ namespace FantasyClinaryArk
             Panel(ui, dx, dy, dw, dh, Edge, PanelFill, line: Rgba(140, 96, 66, .55f));
             Panel(ui, dx + 36, dy - 28, 100, 48, Edge, Crimson, false);
             TextMid(ui, "하츠", dx + 86, dy - 3, 24, true, Gold, TextAnchor.MiddleCenter);
-            typedLine = HartzVerdict[tier];
+            typedLine = isUdon ? (tier < 2 ? "대파 향이랑 후추가 딱 좋아. 식기 전에 가져가자." : "다음에는 간을 더 꼼꼼히 봐야겠어.") : HartzVerdict[tier];
             typedText = Label(ui, "", dx + 52, dy + 34, dw - 100, 50, 22, false, Cream, TextAnchor.UpperLeft, wrap: true);
             Focus(serve.gameObject);
         }

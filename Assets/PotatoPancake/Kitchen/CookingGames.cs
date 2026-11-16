@@ -18,9 +18,43 @@ namespace FantasyClinaryArk
         public bool Hovering;
         public byte[] PancakeMask;
         public PixelSprite FinalPancake;
+        public Batch Amounts = new Batch();
+        public UdonBatch Udon = new UdonBatch();
 
         public bool ShowTool => Pointer.x > -50 && (PointerDown || Hovering);
         public void Play(Sfx effect) => Sound?.Play(effect);
+    }
+
+    /// <summary>
+    /// Real-kitchen amounts for one medium potato, updated by each step from how it was played.
+    /// Defaults are the ideal values, so any step can be played on its own.
+    /// </summary>
+    internal sealed class Batch
+    {
+        public const float Potato = 150;      // g, one medium potato
+        public const float Skin = 15;         // g lost to peel and eyes (≈10%)
+        public const float GraterLoss = .965f; // what the grater keeps
+        public const float SaltPerTap = .25f; // g; two taps = one pinch ≈ 0.5 g
+        public const float OilPerFill = 25;   // ml for a full oil gauge; the green zone is 12.5–20 ml (about 1 tbsp)
+        public const float Density = 1.05f;   // g/cm³ for squeezed batter
+
+        public float Peeled = Potato - Skin, Grated = 130, Water = 42, Pulp = 88, Starch = 5, Salt = .5f, Oil = 16;
+        public float Diameter = 14, Thickness = 5.5f;
+        public float Batter => Pulp + Starch + Salt;
+
+        private static readonly string[] Counts = { "", "한", "두", "세", "네", "다섯" };
+
+        /// <summary>"0.5g (한 꼬집)", "0.75g (한 꼬집 반)" — a pinch is about 0.5 g.</summary>
+        public static string SaltLabel(float grams)
+        {
+            if (grams <= 0)
+                return "0g";
+            int halves = Mathf.Max(1, Mathf.RoundToInt(grams / .25f));
+            int whole = halves / 2;
+            string pinch = whole == 0 ? "반 꼬집"
+                : (whole < Counts.Length ? Counts[whole] + " 꼬집" : whole + "꼬집") + (halves % 2 == 1 ? " 반" : "");
+            return $"{grams:0.0#}g ({pinch})";
+        }
     }
 
     internal sealed class Particles
@@ -146,6 +180,8 @@ namespace FantasyClinaryArk
         public abstract (int score, string note) Timeout();
         public abstract void Gauges(List<Gauge> list);
         public virtual Callout? Shout => null;
+        /// <summary>Records this step's real-kitchen amounts once it ends and returns them as one line.</summary>
+        public virtual string Measure() => null;
 
         protected float Bob(float speed, float amount, float offset = 0) => Mathf.Round(Mathf.Sin(K.Time * speed + offset) * amount);
 
@@ -360,6 +396,12 @@ namespace FantasyClinaryArk
         }
 
         public override void Gauges(List<Gauge> list) => list.Add(Gauge.Meter("벗긴 껍질", Frac / .93f));
+
+        public override string Measure()
+        {
+            K.Amounts.Peeled = Batch.Potato - Batch.Skin * Mathf.Min(1, Frac / .93f);
+            return $"감자 {Batch.Potato:0}g → 손질 후 {K.Amounts.Peeled:0}g";
+        }
     }
 
     // ====================================================================== 2. grate
@@ -481,7 +523,14 @@ namespace FantasyClinaryArk
             }
         }
 
-        public override void Gauges(List<Gauge> list) => list.Add(Gauge.Meter("갈린 감자", Prog, $"{strokes} / {N}"));
+        public override void Gauges(List<Gauge> list) =>
+            list.Add(Gauge.Meter("갈린 감자", Prog, $"{K.Amounts.Peeled * Batch.GraterLoss * Prog:0}g · {strokes} / {N}"));
+
+        public override string Measure()
+        {
+            K.Amounts.Grated = K.Amounts.Peeled * Batch.GraterLoss * Prog;
+            return $"간 감자 {K.Amounts.Grated:0}g";
+        }
     }
 
     // ====================================================================== 3. squeeze
@@ -591,10 +640,20 @@ namespace FantasyClinaryArk
 
         public override void ArtTop(PixelCanvas a) => a.Blit(Bowl.Front, BowlX, BowlY);
 
+        // About a third of the grated potato's weight comes out as water at the ideal squeeze (0.81).
+        private float WaterMl => K.Amounts.Grated * .32f * amount / .81f;
+
+        public override string Measure()
+        {
+            K.Amounts.Water = WaterMl;
+            K.Amounts.Pulp = K.Amounts.Grated - WaterMl;
+            return $"짜낸 물 {K.Amounts.Water:0}ml · 건더기 {K.Amounts.Pulp:0}g";
+        }
+
         public override void Gauges(List<Gauge> list) => list.Add(new Gauge
         {
             Label = "짜낸 물",
-            Value = Mathf.RoundToInt(Clamp(amount, 0, 1) * 100) + "%",
+            Value = $"{WaterMl:0}ml",
             Fill = Clamp(amount, 0, 1),
             FillColor = Hex(amount > .9f ? "#d86a5a" : amount >= .72f ? "#8fd0a0" : "#7fb5d6"),
             ZoneMin = .72f,
@@ -788,6 +847,13 @@ namespace FantasyClinaryArk
             return (Mathf.RoundToInt(Clamp(90 - Loss * 110 - left * 60, 15, 90)), left > .3f ? "윗물이 많이 남았어요" : "조금 늦었어요");
         }
 
+        public override string Measure()
+        {
+            // The settled layer is about 5 g of starch for 42 ml of potato water.
+            K.Amounts.Starch = 5 * Mathf.Min(1.2f, K.Amounts.Water / 42) * (1 - Loss);
+            return $"되살린 전분 {K.Amounts.Starch:0.0}g";
+        }
+
         private static readonly Color32 Water = new Color32(146, 184, 176, 215), Surface = new Color32(205, 230, 222, 240),
             RimColor = new Color32(232, 246, 250, 240), Wall = new Color32(178, 214, 224, 165), Highlight = new Color32(246, 252, 255, 220),
             Foot = new Color32(160, 198, 210, 200), Edge = new Color32(70, 84, 96, 200), Empty = new Color32(210, 236, 242, 26);
@@ -873,7 +939,7 @@ namespace FantasyClinaryArk
             });
             list.Add(new Gauge
             {
-                Label = "바닥의 전분", Value = Mathf.RoundToInt(kept * 100) + "%",
+                Label = "바닥의 전분", Value = $"{5 * Mathf.Min(1.2f, K.Amounts.Water / 42) * kept:0.0}g",
                 Fill = kept, FillColor = Hex(kept > .7f ? "#f1ede4" : "#e09a7a"), ZoneMin = -1, Marker = -1
             });
             list.Add(new Gauge
@@ -1096,8 +1162,14 @@ namespace FantasyClinaryArk
         }
 
         public override void Gauges(List<Gauge> list) => list.Add(!stirring
-            ? Gauge.Meter("소금 톡톡", taps / 2f, $"{taps} / 2", Hex("#e9e4d8"))
+            ? Gauge.Meter("소금 톡톡", taps / 2f, $"{taps * Batch.SaltPerTap:0.00}g / 0.5g", Hex("#e9e4d8"))
             : Gauge.Meter("섞은 바퀴", mix, $"{acc / (Mathf.PI * 2):0.0} / 3"));
+
+        public override string Measure()
+        {
+            K.Amounts.Salt = taps * Batch.SaltPerTap;
+            return $"소금 {Batch.SaltLabel(K.Amounts.Salt)} · 반죽 {K.Amounts.Batter:0}g";
+        }
     }
 
     // ====================================================================== shared pan
@@ -1123,17 +1195,47 @@ namespace FantasyClinaryArk
 
         public static bool InPan(int x, int y, float rx, float ry) => Sq((x + .5f - 70) / rx) + Sq((y + .5f - 48) / ry) <= 1;
 
+        // The pan is a small 20 cm one: its 138 px inner width is 20 cm, and the view squashes depth to 2/3.
+        public const float CmPerPx = 20f / 138;
+        // Dotted guide ring, about 15 cm across. Spreading is done once 86% of it is covered,
+        // which leaves one potato's batter at about 14 cm (the Ideal ellipse).
+        public const float TargetRx = 52, TargetRy = 35;
+        public const float IdealRx = 48, IdealRy = 32;
+
+        public static float AreaCm2(byte[] mask)
+        {
+            int count = 0;
+            foreach (byte v in mask)
+                count += v;
+            return count * CmPerPx * CmPerPx * 1.5f;
+        }
+
+        public static void Size(byte[] mask, Batch amounts)
+        {
+            float area = Mathf.Max(1, AreaCm2(mask));
+            amounts.Diameter = 2 * Mathf.Sqrt(area / Mathf.PI);
+            amounts.Thickness = amounts.Batter / Batch.Density / area * 10;
+        }
+
         public static byte[] DefaultMask()
         {
             var mask = new byte[Mw * Mh];
             for (int y = 0; y < Mh; y++)
             for (int x = 0; x < Mw; x++)
-                if (InPan(x, y, 58, 39))
+                if (InPan(x, y, IdealRx, IdealRy))
                     mask[y * Mw + x] = 1;
             return mask;
         }
 
         public static void Draw(PixelCanvas a, float time)
+        {
+            Flames(a, time);
+            a.Blit(Handle, Center.x + 72, Center.y - 12);
+            a.Blit(Pan, Center.x - 86, Center.y - 62);
+        }
+
+        /// <summary>The burner's glow and ring of flames, drawn under whatever sits on the stove.</summary>
+        public static void Flames(PixelCanvas a, float time)
         {
             a.Ellipse(Center.x, Center.y + 6, 112, 76, Rgba(255, 140, 50, .07f));
             a.Ellipse(Center.x, Center.y + 6, 98, 66, Rgba(255, 150, 60, .08f));
@@ -1148,9 +1250,6 @@ namespace FantasyClinaryArk
                     a.FillRect(Mathf.Round(ex + Mathf.Cos(angle) * k), Mathf.Round(ey + Mathf.Sin(angle) * k), 2, 1,
                         Hex(k == 0 ? "#6ab8ff" : k < h - 1 ? "#ffd166" : "#ff7b2e"));
             }
-
-            a.Blit(Handle, Center.x + 72, Center.y - 12);
-            a.Blit(Pan, Center.x - 86, Center.y - 62);
         }
     }
 
@@ -1174,7 +1273,7 @@ namespace FantasyClinaryArk
         {
             for (int y = 0; y < Mh; y++)
             for (int x = 0; x < Mw; x++)
-                if (Stove.InPan(x, y, 60, 40))
+                if (Stove.InPan(x, y, Stove.TargetRx, Stove.TargetRy))
                     target++;
         }
 
@@ -1276,7 +1375,7 @@ namespace FantasyClinaryArk
                 if (mask[i] != 0)
                     continue;
                 mask[i] = 1;
-                if (Stove.InPan(x, y, 60, 40))
+                if (Stove.InPan(x, y, Stove.TargetRx, Stove.TargetRy))
                     covered++;
                 painted++;
             }
@@ -1355,10 +1454,10 @@ namespace FantasyClinaryArk
 
             if (phase != Phase.Spread)
                 return;
-            // Three spokes from the middle out to the rim per press.
+            // Three spokes from the middle out per press; the brush edge, not its centre, stops at the dotted line.
             for (int spoke = 0; spoke < 3; spoke++, keyAngle += .36f)
-                for (float r = 0; r <= 1.05f; r += .06f)
-                    Paint(70 + Mathf.Cos(keyAngle) * 60 * r, 48 + Mathf.Sin(keyAngle) * 40 * r, false);
+                for (float r = 0; r <= 1.001f; r += .06f)
+                    Paint(70 + Mathf.Cos(keyAngle) * (Stove.TargetRx - 7) * r, 48 + Mathf.Sin(keyAngle) * (Stove.TargetRy - 5) * r, false);
             K.Play(Sfx.Sizzle);
             CheckDone();
         }
@@ -1417,7 +1516,7 @@ namespace FantasyClinaryArk
             for (int i = 0; i < 24; i++)
             {
                 float angle = i / 24f * Mathf.PI * 2;
-                int x = Mathf.RoundToInt(70 + Mathf.Cos(angle) * 60), y = Mathf.RoundToInt(48 + Mathf.Sin(angle) * 40);
+                int x = Mathf.RoundToInt(70 + Mathf.Cos(angle) * Stove.TargetRx), y = Mathf.RoundToInt(48 + Mathf.Sin(angle) * Stove.TargetRy);
                 if (mask[y * Mw + x] == 0 && (i + Mathf.FloorToInt(K.Time * 6)) % 3 == 0)
                     a.FillRect(Pc.x - 70 + x, Pc.y - 48 + y, 2, 2, Hex("#FFC05A"));
             }
@@ -1438,16 +1537,24 @@ namespace FantasyClinaryArk
         {
             if (phase == Phase.Spread)
             {
-                list.Add(Gauge.Meter("펴진 반죽", Coverage / .86f));
+                Stove.Size(mask, K.Amounts);
+                list.Add(Gauge.Meter("펴진 반죽", Coverage / .86f, $"지름 {K.Amounts.Diameter:0.0}cm"));
                 return;
             }
 
             list.Add(new Gauge
             {
-                Label = "두른 기름", Value = Mathf.RoundToInt(Clamp(oil, 0, 1) * 100) + "%",
+                Label = "두른 기름", Value = $"{Clamp(oil, 0, 1.05f) * Batch.OilPerFill:0}ml",
                 Fill = Clamp(oil, 0, 1), FillColor = Hex(oil > .8f ? "#d86a5a" : oil >= .5f ? "#8fd0a0" : "#e6c25a"),
                 ZoneMin = .5f, ZoneMax = .8f, ZoneColor = Hex("#689c7c", .55f), ZoneLabel = "딱 좋아요", Marker = -1
             });
+        }
+
+        public override string Measure()
+        {
+            K.Amounts.Oil = oil * Batch.OilPerFill;
+            Stove.Size(mask, K.Amounts);
+            return $"기름 {K.Amounts.Oil:0}ml · 지름 {K.Amounts.Diameter:0.0}cm · 두께 {K.Amounts.Thickness:0.0}mm";
         }
 
         public override Callout? Shout => pouring && oil >= .5f && oil <= .8f
